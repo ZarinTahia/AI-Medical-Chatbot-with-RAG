@@ -1,0 +1,91 @@
+import os
+from dotenv import load_dotenv, find_dotenv
+
+from langchain_huggingface import (
+    HuggingFaceEndpoint,
+    ChatHuggingFace,
+    HuggingFaceEmbeddings,
+)
+from langchain_community.vectorstores import FAISS
+
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.runnables import RunnablePassthrough, RunnableLambda
+from langchain_core.output_parsers import StrOutputParser
+
+
+
+# Load env
+
+load_dotenv(find_dotenv())
+
+HF_TOKEN = os.environ.get("HF_TOKEN")
+if not HF_TOKEN:
+    raise ValueError("HF_TOKEN is missing. Set it in your .env file or environment variables.")
+
+HUGGINGFACE_REPO_ID = "mistralai/Mistral-7B-Instruct-v0.2"
+DB_FAISS_PATH = "vectorstore/db_faiss"
+
+
+
+
+def load_llm(repo_id: str):
+    # Hugging Face Inference endpoint (chat/conversational)
+    endpoint = HuggingFaceEndpoint(
+        repo_id=repo_id,
+        task="conversational",
+        huggingfacehub_api_token=HF_TOKEN,
+        temperature=0.5,
+        max_new_tokens=512,
+    )
+    # Wrap as a chat model so prompts/messages work correctly
+    return ChatHuggingFace(llm=endpoint)
+
+
+
+CUSTOM_PROMPT_TEMPLATE = """
+Use only the context to answer the question.
+If you don't know the answer from the context, say "I don't know."
+
+Context:
+{context}
+
+Question: {question}
+
+Start the answer directly. No small talk.
+""".strip()
+
+prompt = ChatPromptTemplate.from_template(CUSTOM_PROMPT_TEMPLATE)
+
+
+
+embedding_model = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+db = FAISS.load_local(DB_FAISS_PATH, embedding_model, allow_dangerous_deserialization=True)
+retriever = db.as_retriever(search_kwargs={"k": 5})
+
+
+
+format_docs = RunnableLambda(lambda docs: "\n\n".join(d.page_content for d in docs))
+
+
+
+llm = load_llm(HUGGINGFACE_REPO_ID)
+
+rag_chain = (
+    {"context": retriever | format_docs, "question": RunnablePassthrough()}
+    | prompt
+    | llm
+    | StrOutputParser()
+)
+
+
+
+user_query = input("Write Query Here: ").strip()
+
+result = rag_chain.invoke(user_query)
+print("\nRESULT:\n", result)
+
+docs = retriever.invoke(user_query)
+print("\nSOURCE DOCUMENTS:")
+for i, d in enumerate(docs, 1):
+    src = d.metadata.get("source", "unknown")
+    print(f"\n[{i}] source={src}\n{d.page_content[:500]}{'...' if len(d.page_content) > 500 else ''}")
