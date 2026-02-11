@@ -58,7 +58,7 @@ format_docs = RunnableLambda(lambda docs: "\n\n".join(d.page_content for d in do
 # Streamlit app
 # ----------------------------
 def main():
-    st.title("Ask Chatbot!")
+    st.title("Ask Medical Chatbot!")
 
     hf_token = os.environ.get("HF_TOKEN")
     if not hf_token:
@@ -70,18 +70,28 @@ def main():
     retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
 
     # Prompt
+   
     CUSTOM_PROMPT_TEMPLATE = """
-Use the pieces of information provided in the context to answer the user's question.
-If you don't know the answer from the context, say "I don't know." Do not make up an answer.
-Do not provide anything outside the given context.
+You are a medical RAG assistant.
 
-Context:
+Rules:
+
+- Use ONLY the Context to answer medical facts.
+- Chat history is ONLY for understanding what the user refers to (pronouns, “that”, follow-ups), NOT for facts.
+- If the Context does not contain the answer, say: "I don't know based on the provided documents."
+- Do not add extra medical advice.
+
+Chat history (reference only):
+{chat_history}
+
+Context (the only source of truth):
 {context}
 
 Question: {question}
+Start the Answer directly. No small talk.
 
-Start the answer directly. No small talk.
 """.strip()
+
 
     prompt_tmpl = ChatPromptTemplate.from_template(CUSTOM_PROMPT_TEMPLATE)
 
@@ -90,11 +100,15 @@ Start the answer directly. No small talk.
 
     # RAG chain (new LangChain LCEL)
     rag_chain = (
-        {"context": retriever | format_docs, "question": RunnablePassthrough()}
-        | prompt_tmpl
-        | llm
-        | StrOutputParser()
-    )
+    {
+        "context": retriever | format_docs,
+        "chat_history": RunnableLambda(lambda _: chat_history_text),
+        "question": RunnablePassthrough(),
+    }
+    | prompt_tmpl
+    | llm
+    | StrOutputParser()
+)
 
     # Chat state
     if "messages" not in st.session_state:
@@ -110,12 +124,26 @@ Start the answer directly. No small talk.
         st.session_state.messages.append({"role": "user", "content": user_prompt})
 
         try:
-            answer = rag_chain.invoke(user_prompt)
+            N = 3 # how many past messages to remember
+            chat_history_text = "\n".join(
+                [f"{m['role']}: {m['content']}" for m in st.session_state.messages[-N:]]
+            )
+
             docs = retriever.invoke(user_prompt)
+            context_text = "\n\n".join(d.page_content for d in docs)
+
+            answer = (prompt_tmpl | llm | StrOutputParser()).invoke({
+                "chat_history": chat_history_text,
+                "context": context_text,
+                "question": user_prompt
+            })
+
+
 
             sources = []
             for d in docs:
-                src = d.metadata.get("source", "unknown")
+                #src = d.metadata.get("source", "unknown")
+                src = os.path.basename(d.metadata.get("source", "unknown"))
                 page = d.metadata.get("page", None)
                 if page is not None:
                     sources.append(f"- {src} (page {page})")

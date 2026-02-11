@@ -1,4 +1,4 @@
-# "AI-Medical-Chatbot-with-RAG" 
+# AI-Medical-Chatbot-with-RAG 
 
 ## Overview
 
