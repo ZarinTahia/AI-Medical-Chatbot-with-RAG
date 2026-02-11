@@ -16,14 +16,13 @@ Vector Database: FAISS
 
 ## Project Structure
 
-AI-Medical-Chatbot-with-RAG/
-│
-├── connect_memory_with_llm.py # connection establish
-├── medical-chat-bot.py        # Main Streamlit chatbot app
-├── memory_llm.py              # Memory-enabled LLM pipeline
-├── requirements.txt           # Dependencies
-├── README.md                  # Project documentation
-└── data/                      # Medical documents
+AI-Medical-Chatbot-with-RAG/  
+    connect_memory_with_llm.py # connection establish  
+    medical-chat-bot.py        # Main Streamlit chatbot app  
+    memory_llm.py              # Memory-enabled LLM pipeline  
+    requirements.txt           # Dependencies  
+    README.md                  # Project documentation  
+    data/                      # Medical documents  
 
 ## Run the application
 streamlit run medical-chat-bot.py
