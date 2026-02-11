@@ -1,1 +1,16 @@
-pip install langchain langchain-community langchain-huggingface faiss-cpu PyPDF
+streamlit>=1.30
+
+langchain>=0.2.0
+langchain-community>=0.2.0
+langchain-huggingface>=0.0.3
+
+sentence-transformers>=2.2.2
+transformers>=4.38.0
+torch>=2.0.0
+
+faiss-cpu>=1.7.4
+pypdf>=4.0.0
+
+numpy>=1.24
+python-dotenv>=1.0.0
+huggingface-hub>=0.20.0
